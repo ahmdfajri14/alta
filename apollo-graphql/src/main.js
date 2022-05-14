@@ -1,29 +1,47 @@
-import Vue from 'vue'
-import App from './App.vue'
-import VueApollo from 'vue-apollo'
-import { ApolloClient } from 'apollo-client'
-import { createHttpLink } from 'apollo-link-http'
-import { InMemoryCache } from 'apollo-cache-inmemory'
+import {ApolloClient, HttpLink, InMemoryCache, split} from "apollo-boost";
+import {WebSocketLink} from "apollo-link-ws";
+import {getMainDefinition} from "apollo-utilities";
+import Vue from "vue";
+import VueApollo from "vue-apollo";
+import App from "./App.vue";
 
-Vue.config.productionTip = false
-
-const httpLink = createHttpLink({
-  uri: 'https://useful-wallaby-73.hasura.app/v1/graphql'
-})
-
-const apolloClient = new ApolloClient({
-  link: httpLink,
-  cache: new InMemoryCache(),
-  connectToDevTools: true
-})
-
+Vue.config.productionTip = false;
 Vue.use(VueApollo);
 
-const apolloProvider = new VueApollo({
-  defaultClient: apolloClient
-})
+const httpLink = new HttpLink({
+  uri: "https://useful-wallaby-73.hasura.app/v1/graphql",
+});
 
+const wslink = new WebSocketLink({
+  uri: "ws://useful-wallaby-73.hasura.app/v1/graphql",
+  options: {
+    reconnect: true,
+    lazy: true,
+  },
+});
+
+const link = split(
+  ({query}) => {
+    const definition = getMainDefinition(query);
+    return (
+      definition.kind == "OperationDefinition" &&
+      definition.operation == "subscription"
+    );
+  },
+  wslink,
+  httpLink
+);
+
+const apolloClient = new ApolloClient({
+  link,
+  cache: new InMemoryCache(),
+  connectToDevTools: true,
+});
+
+const apolloProvider = new VueApollo({
+  defaultClient: apolloClient,
+});
 new Vue({
   apolloProvider,
-  render: h => h(App),
-}).$mount('#app')
+  render: (h) => h(App),
+}).$mount("#app");
